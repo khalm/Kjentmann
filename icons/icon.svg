@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f5d43"/>
+      <stop offset="1" stop-color="#1b3a2a"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e2553a"/>
+      <stop offset="1" stop-color="#b8361f"/>
+    </linearGradient>
+    <clipPath id="sq"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <g clip-path="url(#sq)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <!-- topografiske høydekurver -->
+    <g fill="none" stroke="#a9c9a4" stroke-opacity=".22" stroke-width="7">
+      <path d="M-20 410 C 80 360, 150 440, 260 400 S 450 330, 540 380"/>
+      <path d="M-20 465 C 90 420, 170 500, 280 455 S 460 400, 540 440"/>
+      <path d="M-20 120 C 70 80, 140 150, 230 110 S 420 40, 540 90"/>
+      <path d="M-20 60 C 90 20, 160 90, 260 50 S 440 -10, 540 30"/>
+      <path d="M380 250 c 40 -50, 120 -40, 150 10"/>
+      <path d="M-10 270 c 30 -40, 80 -40, 110 0"/>
+    </g>
+    <!-- skygge -->
+    <ellipse cx="256" cy="448" rx="78" ry="18" fill="#0d2016" opacity=".45"/>
+  </g>
+  <!-- kartnål -->
+  <path d="M256 70c-86 0-150 64-150 146 0 104 120 196 142 229a10 10 0 0 0 16 0c22-33 142-125 142-229 0-82-64-146-150-146z" fill="url(#pin)"/>
+  <circle cx="256" cy="214" r="92" fill="#fbf6ea"/>
+  <!-- gran -->
+  <g fill="#2f5d43">
+    <path d="M256 136 L216 194 h18 L204 236 h22 L192 280 h128 L286 236 h22 L278 194 h18 Z"/>
+    <rect x="246" y="278" width="20" height="22" rx="3" fill="#7a4b2a"/>
+  </g>
+</svg>
