@@ -255,3 +255,10 @@ textarea { min-height: 76px; resize: vertical; }
   background: rgba(20,30,25,.92); color: #fff; padding: 10px 16px; border-radius: 12px;
   font-size: .92rem; max-width: 90vw; text-align: center; box-shadow: var(--shadow);
 }
+
+/* Egen type når «Annet» er valgt */
+.kind-box { margin-top: 12px; padding: 12px; background: var(--cream); border-radius: 14px; border: 1.5px dashed var(--line); }
+.kind-box label { margin-bottom: 6px; font-weight: 600; }
+.kind-box input { background: var(--paper); }
+.kind-suggest { margin-top: 8px; }
+.kind-suggest:empty { display: none; }

@@ -2,7 +2,7 @@
    Alt lagres lokalt på telefonen. Ingen konto, ingen server, ingen kostnader. */
 'use strict';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 
 /* ---------------------------------------------------------------- Data */
 
@@ -20,6 +20,34 @@ const CATEGORIES = [
   { id: 'annet',     name: 'Annet',     icon: '📍', color: '#c9442b' },
 ];
 const CAT = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
+
+/* Hva plassen er: kategorinavnet, eller det du selv har skrevet når du valgte «Annet» */
+function catLabel(p) {
+  if (p.cat === 'annet' && p.kind) return p.kind;
+  return (CAT[p.cat] || CAT.annet).name;
+}
+function catIcon(p) {
+  if (p.cat === 'annet' && p.kind) return p.icon;
+  return (CAT[p.cat] || CAT.annet).icon;
+}
+/* Nøkkel for filtrering, slik at hver egen type får sin egen knapp */
+function filterKey(p) {
+  return p.cat === 'annet' && p.kind ? 'egen:' + p.kind.toLowerCase() : p.cat;
+}
+function cleanKind(v) {
+  v = String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  return v ? v[0].toLocaleUpperCase('nb-NO') + v.slice(1) : '';
+}
+/* Egne typer brukt før, de mest brukte først */
+function usedKinds() {
+  const count = new Map();
+  for (const p of places) if (p.cat === 'annet' && p.kind) {
+    const k = p.kind.toLowerCase();
+    const e = count.get(k) || { kind: p.kind, icon: p.icon, color: p.color, n: 0 };
+    e.n++; count.set(k, e);
+  }
+  return [...count.values()].sort((a, b) => b.n - a.n);
+}
 
 const ICONS = [
   '🎣','🐟','🦐','🦀','🦞','🍄','🫐','🍓',
@@ -173,7 +201,7 @@ function renderPlaces() {
   placeLayer.clearLayers();
   layerById.clear();
   for (const p of places) {
-    if (filterCats.size && !filterCats.has(p.cat)) continue;
+    if (filterCats.size && !filterCats.has(filterKey(p))) continue;
     const onClick = e => onPlaceTap(p.id, e);
     if (p.type === 'point') {
       const m = L.marker(p.coords, { icon: pinIcon(p, p.id === selectedId), zIndexOffset: p.id === selectedId ? 1000 : 0 })
@@ -492,6 +520,11 @@ function openForm(draft, { isNew = true, accuracy = null } = {}) {
     <div class="chips" id="fCats">
       ${CATEGORIES.map(c => `<button class="chip${c.id === draft.cat ? ' on' : ''}" data-cat="${c.id}">${c.icon} ${esc(c.name)}</button>`).join('')}
     </div>
+    <div id="fKindBox" class="kind-box${draft.cat === 'annet' ? '' : ' hidden'}">
+      <label class="field sub" for="fKind">Hva slags plass er det?</label>
+      <input type="text" id="fKind" maxlength="40" placeholder="F.eks. gapahuk, kilde, multemyr, rasteplass …" value="${esc(draft.kind || '')}" autocomplete="off" autocapitalize="sentences">
+      <div class="chips kind-suggest" id="fKindSuggest"></div>
+    </div>
 
     <h3>Ikon</h3>
     <div class="icon-grid" id="fIcons">
@@ -518,13 +551,40 @@ function openForm(draft, { isNew = true, accuracy = null } = {}) {
     body.querySelectorAll('#fIcons .icon-cell').forEach(b => b.classList.toggle('on', b.dataset.icon === draft.icon));
     body.querySelectorAll('#fColors .swatch').forEach(b => b.classList.toggle('on', b.dataset.color === draft.color));
   };
-  const readText = () => { draft.name = $('#fName').value.trim(); draft.note = $('#fNote').value.trim(); };
+  const readText = () => {
+    draft.name = $('#fName').value.trim();
+    draft.note = $('#fNote').value.trim();
+    draft.kind = draft.cat === 'annet' ? cleanKind($('#fKind').value) : '';
+    if (!draft.kind) delete draft.kind;
+  };
+
+  // Forslag fra egne typer du har brukt før
+  const drawKindSuggest = () => {
+    const q = $('#fKind').value.trim().toLowerCase();
+    const list = usedKinds().filter(k => k.kind.toLowerCase() !== q && (!q || k.kind.toLowerCase().includes(q))).slice(0, 8);
+    body.querySelector('#fKindSuggest').innerHTML = list.map(k =>
+      `<button class="chip" data-kind="${esc(k.kind)}" data-icon="${esc(k.icon)}" data-color="${esc(k.color)}">${esc(k.icon)} ${esc(k.kind)}</button>`).join('');
+  };
+  drawKindSuggest();
+  body.querySelector('#fKind').addEventListener('input', drawKindSuggest);
+  body.querySelector('#fKindSuggest').addEventListener('click', e => {
+    const b = e.target.closest('[data-kind]'); if (!b) return;
+    e.stopPropagation();
+    $('#fKind').value = b.dataset.kind;
+    // Bruk samme ikon og farge som sist, hvis du ikke har valgt selv
+    if (!iconTouched) draft.icon = b.dataset.icon;
+    if (!colorTouched && /^#[0-9a-f]{6}$/i.test(b.dataset.color)) draft.color = b.dataset.color;
+    drawKindSuggest(); sync();
+  });
 
   body.querySelector('#fCats').addEventListener('click', e => {
     const b = e.target.closest('[data-cat]'); if (!b) return;
     draft.cat = b.dataset.cat;
     if (!iconTouched) draft.icon = CAT[draft.cat].icon;
     if (!colorTouched) draft.color = CAT[draft.cat].color;
+    const box = body.querySelector('#fKindBox');
+    box.classList.toggle('hidden', draft.cat !== 'annet');
+    if (draft.cat === 'annet') setTimeout(() => $('#fKind').focus(), 50);
     sync();
   });
   body.querySelector('#fIcons').addEventListener('click', e => {
@@ -540,7 +600,7 @@ function openForm(draft, { isNew = true, accuracy = null } = {}) {
   });
   body.querySelector('#fSave').addEventListener('click', () => {
     readText();
-    if (!draft.name) draft.name = CAT[draft.cat].name + (draft.type === 'area' ? 'område' : 'plass');
+    if (!draft.name) draft.name = draft.kind || (CAT[draft.cat].name + (draft.type === 'area' ? 'område' : 'plass'));
     const now = Date.now();
     if (isNew) {
       const p = { id: newId(), ...draft, created: now, updated: now };
@@ -552,7 +612,10 @@ function openForm(draft, { isNew = true, accuracy = null } = {}) {
       openDetail(p.id);
     } else {
       const i = places.findIndex(p => p.id === draft.id);
-      if (i >= 0) places[i] = { ...places[i], ...draft, updated: now };
+      if (i >= 0) {
+        places[i] = { ...places[i], ...draft, updated: now };
+        if (!draft.kind) delete places[i].kind;
+      }
       savePlaces(); renderPlaces();
       toast('Endringene er lagret');
       openDetail(draft.id);
@@ -613,7 +676,7 @@ function openDetail(id) {
       <div class="big-emo" style="background:${p.color}">${esc(p.icon)}</div>
       <div>
         <h2>${esc(p.name)}</h2>
-        <div class="sub">${c.icon} ${esc(c.name)} · ${kind}${dist != null ? (dist < 15 ? ' · du er her' : ` · ${fmtDist(dist)} unna`) : ''}</div>
+        <div class="sub">${esc(catIcon(p))} ${esc(catLabel(p))} · ${kind}${dist != null ? (dist < 15 ? ' · du er her' : ` · ${fmtDist(dist)} unna`) : ''}</div>
       </div>
     </div>
     ${p.note ? `<div class="note">${esc(p.note)}</div>` : ''}
@@ -665,14 +728,20 @@ function zoomTo(p) {
 
 let listQuery = '';
 function openList() {
-  const used = CATEGORIES.filter(c => places.some(p => p.cat === c.id));
+  const used = [];
+  for (const c of CATEGORIES) {
+    if (c.id === 'annet') {
+      for (const k of usedKinds()) used.push({ key: 'egen:' + k.kind.toLowerCase(), icon: k.icon, name: k.kind });
+      if (places.some(p => p.cat === 'annet' && !p.kind)) used.push({ key: 'annet', icon: c.icon, name: c.name });
+    } else if (places.some(p => p.cat === c.id)) used.push({ key: c.id, icon: c.icon, name: c.name });
+  }
   const body = openSheet(`
     <h2 class="sheet-head-drag">Mine plasser <span class="sub" style="font-size:.9rem">(${places.length})</span></h2>
     ${places.length ? `
-      <input type="search" id="lQ" placeholder="Søk i navn og notater" value="${esc(listQuery)}">
+      <input type="search" id="lQ" placeholder="Søk i navn, type og notater" value="${esc(listQuery)}">
       <div class="chips" id="lCats" style="margin-top:10px">
         <button class="chip${filterCats.size ? '' : ' on'}" data-cat="">Alle</button>
-        ${used.map(c => `<button class="chip${filterCats.has(c.id) ? ' on' : ''}" data-cat="${c.id}">${c.icon} ${esc(c.name)}</button>`).join('')}
+        ${used.map(c => `<button class="chip${filterCats.has(c.key) ? ' on' : ''}" data-cat="${esc(c.key)}">${esc(c.icon)} ${esc(c.name)}</button>`).join('')}
       </div>
       <ul class="list" id="lItems"></ul>
       <div class="actions"><button class="btn grow" id="lShare">📤 Del plassene i listen</button></div>
@@ -685,18 +754,17 @@ function openList() {
   const visible = () => {
     const q = listQuery.toLowerCase();
     return places
-      .filter(p => !filterCats.size || filterCats.has(p.cat))
-      .filter(p => !q || p.name.toLowerCase().includes(q) || (p.note || '').toLowerCase().includes(q));
+      .filter(p => !filterCats.size || filterCats.has(filterKey(p)))
+      .filter(p => !q || p.name.toLowerCase().includes(q) || (p.note || '').toLowerCase().includes(q) || catLabel(p).toLowerCase().includes(q));
   };
   const draw = () => {
     let items = visible().map(p => ({ p, d: distanceTo(p) }));
     items.sort((a, b) => (a.d != null && b.d != null) ? a.d - b.d : b.p.created - a.p.created);
     body.querySelector('#lItems').innerHTML = items.length ? items.map(({ p, d }) => {
-      const c = CAT[p.cat] || CAT.annet;
       return `<li data-id="${esc(p.id)}">
         <div class="li-emo" style="background:${p.color}22">${esc(p.icon)}</div>
         <div class="li-main"><div class="li-name">${esc(p.name)}</div>
-          <div class="li-sub">${esc(c.name)} · ${p.type === 'point' ? 'punkt' : 'område'}</div></div>
+          <div class="li-sub">${esc(catLabel(p))} · ${p.type === 'point' ? 'punkt' : 'område'}</div></div>
         <div class="li-dist">${fmtDist(d)}</div></li>`;
     }).join('') : `<div class="empty">Ingen treff.</div>`;
     body.querySelector('#lShare').disabled = !items.length;
@@ -750,6 +818,7 @@ async function encodeShare(list) {
         ? [+p.coords[0].toFixed(6), +p.coords[1].toFixed(6)]
         : p.coords.map(c => [+c[0].toFixed(6), +c[1].toFixed(6)]);
       if (p.note) o.o = p.note;
+      if (p.cat === 'annet' && p.kind) o.y = p.kind;
       return o;
     }),
   };
@@ -789,7 +858,10 @@ function sanitizeShared(o) {
   const color = typeof o.k === 'string' && /^#[0-9a-f]{6}$/i.test(o.k) ? o.k : CAT[cat].color;
   const name = typeof o.n === 'string' ? o.n.slice(0, 80) : CAT[cat].name;
   const note = typeof o.o === 'string' ? o.o.slice(0, 2000) : '';
-  return { type, coords, cat, icon, color, name, note };
+  const out = { type, coords, cat, icon, color, name, note };
+  const kind = cat === 'annet' && typeof o.y === 'string' ? cleanKind(o.y) : '';
+  if (kind) out.kind = kind;
+  return out;
 }
 
 async function sharePlaces(list, title) {
@@ -842,7 +914,7 @@ async function checkIncomingShare() {
     <ul class="list">
       ${list.map(p => `<li><div class="li-emo" style="background:${p.color}22">${esc(p.icon)}</div>
         <div class="li-main"><div class="li-name">${esc(p.name)}</div>
-        <div class="li-sub">${esc(CAT[p.cat].name)} · ${p.type === 'point' ? 'punkt' : 'område på ' + fmtArea(polygonArea(p.coords))}</div>
+        <div class="li-sub">${esc(catLabel(p))} · ${p.type === 'point' ? 'punkt' : 'område på ' + fmtArea(polygonArea(p.coords))}</div>
         ${p.note ? `<div class="li-sub" style="white-space:pre-wrap">${esc(p.note)}</div>` : ''}</div></li>`).join('')}
     </ul>
     ${fresh.length < list.length ? `<div class="sub" style="margin-top:8px">${list.length - fresh.length} av dem har du fra før.</div>` : ''}
@@ -930,7 +1002,7 @@ $('#importFile').addEventListener('change', async e => {
     if (!Array.isArray(arr)) throw 0;
     let added = 0;
     for (const raw of arr) {
-      const s = sanitizeShared({ n: raw.name, c: raw.cat, i: raw.icon, k: raw.color, t: raw.type === 'area' ? 'a' : 'p', g: raw.coords, o: raw.note });
+      const s = sanitizeShared({ n: raw.name, c: raw.cat, i: raw.icon, k: raw.color, t: raw.type === 'area' ? 'a' : 'p', g: raw.coords, o: raw.note, y: raw.kind });
       if (!s) continue;
       if (places.some(q => q.id === raw.id || sameAs(q, s))) continue;
       places.push({ id: typeof raw.id === 'string' ? raw.id : newId(), ...s, created: +raw.created || Date.now(), updated: Date.now() });

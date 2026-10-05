@@ -1,5 +1,5 @@
 /* Kjentmann service worker – gjør at appen og kartet virker uten dekning. */
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const APP_CACHE = `kjentmann-app-${VERSION}`;
 const TILE_CACHE = 'kjentmann-tiles-auto';     // kartbiter du har sett (ryddes automatisk)
 const SAVED_CACHE = 'kjentmann-tiles-saved';   // kartbiter du har lastet ned (ryddes ikke)
