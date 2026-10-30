@@ -2,7 +2,7 @@
    Alt lagres lokalt på telefonen. Ingen konto, ingen server, ingen kostnader. */
 'use strict';
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 
 /* ---------------------------------------------------------------- Data */
 
@@ -957,6 +957,12 @@ $('#btnLayers').addEventListener('click', () => {
 
 /* ---------------------------------------------------------------- Meny */
 
+async function shareThisApp() {
+  const url = /github\.io$/.test(location.hostname) ? new URL('./', location.href).href : 'https://khalm.github.io/Kjentmann/';
+  const text = 'Kjentmann: merk og del fiske-, sopp- og bærplasser på kartet.';
+  if (navigator.share) { try { await navigator.share({ title: 'Kjentmann', text, url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(text + ' ' + url); toast('Lenken er kopiert – lim den inn i en melding'); } catch { prompt('', url); }
+}
 let installPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
 
@@ -968,6 +974,7 @@ $('#btnMenu').addEventListener('click', () => {
     <button class="menu-item" data-act="shareall"><span class="menu-ico">📤</span><span>Del plasser<small>Velg hvilke i «Mine plasser» og trykk Del</small></span></button>
     <button class="menu-item" data-act="export"><span class="menu-ico">💾</span><span>Ta sikkerhetskopi<small>Lagre alle plassene i en fil</small></span></button>
     <button class="menu-item" data-act="import"><span class="menu-ico">📂</span><span>Hent fra sikkerhetskopi<small>Legg til plasser fra en fil</small></span></button>
+    <button class="menu-item" data-act="shareapp"><span class="menu-ico">📲</span><span>Del appen med noen<small>Send lenken til Kjentmann</small></span></button>
     <button class="menu-item" data-act="about"><span class="menu-ico">ℹ️</span><span>Om Kjentmann</span></button>
   `);
   body.addEventListener('click', async e => {
@@ -976,6 +983,7 @@ $('#btnMenu').addEventListener('click', () => {
     if (act === 'install') { closeSheet(); installPrompt.prompt(); installPrompt = null; }
     if (act === 'offline') openOffline();
     if (act === 'shareall') openList();
+    if (act === 'shareapp') shareThisApp();
     if (act === 'export') exportBackup();
     if (act === 'import') { closeSheet(); $('#importFile').click(); }
     if (act === 'about') openAbout();
